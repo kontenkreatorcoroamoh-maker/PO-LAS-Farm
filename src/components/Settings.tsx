@@ -4,24 +4,25 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { CompanySettings, User, UserRole, Product } from "../types";
+import { CompanySettings, User, UserRole, Product, Customer, SalesOrder } from "../types";
 import { 
   getCompanySettingsFromStorage, saveCompanySettingsToStorage, 
   resetAllDataToDefault, getProductsFromStorage, saveProductsToStorage,
-  PRESET_USERS, clearAllTransactions
+  PRESET_USERS, clearAllTransactions, getCustomersFromStorage, saveCustomersToStorage
 } from "../data";
 import { 
   Building, MapPin, Phone, Mail, Percent, Save, RotateCcw, 
-  Trash2, ShieldAlert, CheckCircle, ArrowLeft, Package, UserCheck, Eye, EyeOff
+  Trash2, ShieldAlert, CheckCircle, ArrowLeft, Package, UserCheck, Eye, EyeOff, Lock
 } from "lucide-react";
 
 interface SettingsProps {
   currentUser: User;
   onBack: () => void;
   onRefreshData: () => void;
+  orders: SalesOrder[];
 }
 
-export default function Settings({ currentUser, onBack, onRefreshData }: SettingsProps) {
+export default function Settings({ currentUser, onBack, onRefreshData, orders }: SettingsProps) {
   // Company settings states
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
@@ -46,6 +47,24 @@ export default function Settings({ currentUser, onBack, onRefreshData }: Setting
   const [showTransConfirmModal, setShowTransConfirmModal] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
+  // Customers manager states
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
+  const [deletingCustomerId, setDeletingCustomerId] = useState<string | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState("");
+  const [editCustomerStoreName, setEditCustomerStoreName] = useState("");
+  const [editCustomerAddress, setEditCustomerAddress] = useState("");
+  const [editCustomerWhatsapp, setEditCustomerWhatsapp] = useState("");
+  const [editCustomerGps, setEditCustomerGps] = useState("");
+
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerStore, setNewCustomerStore] = useState("");
+  const [newCustomerAddress, setNewCustomerAddress] = useState("");
+  const [newCustomerWhatsapp, setNewCustomerWhatsapp] = useState("");
+  const [newCustomerGps, setNewCustomerGps] = useState("");
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [showClearCustomersConfirm, setShowClearCustomersConfirm] = useState(false);
+
   // Initialize
   useEffect(() => {
     const current = getCompanySettingsFromStorage();
@@ -56,7 +75,91 @@ export default function Settings({ currentUser, onBack, onRefreshData }: Setting
     setEmail(current.email);
 
     setProducts(getProductsFromStorage());
+    setCustomers(getCustomersFromStorage());
   }, []);
+
+  const isCustomerUsedInOrders = (customer: Customer) => {
+    return orders.some(o => 
+      o.customerInfo.name.trim().toLowerCase() === customer.name.trim().toLowerCase() ||
+      (customer.storeName && o.customerInfo.storeName && o.customerInfo.storeName.trim().toLowerCase() === customer.storeName.trim().toLowerCase())
+    );
+  };
+
+  const handleDeleteCustomer = (id: string) => {
+    const updated = customers.filter(c => c.id !== id);
+    setCustomers(updated);
+    saveCustomersToStorage(updated);
+    onRefreshData();
+  };
+
+  const handleAddCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomerName) {
+      setErrorMsg("Error: Silakan lengkapi Nama pelanggan.");
+      setTimeout(() => setErrorMsg(""), 5000);
+      return;
+    }
+    const newCust: Customer = {
+      id: `cust-id-${Date.now()}`,
+      name: newCustomerName,
+      storeName: newCustomerStore,
+      address: newCustomerAddress,
+      whatsapp: newCustomerWhatsapp,
+      gpsLocation: newCustomerGps
+    };
+    const updated = [...customers, newCust];
+    setCustomers(updated);
+    saveCustomersToStorage(updated);
+    // Clear form
+    setNewCustomerName("");
+    setNewCustomerStore("");
+    setNewCustomerAddress("");
+    setNewCustomerWhatsapp("");
+    setNewCustomerGps("");
+    setIsAddingCustomer(false);
+    onRefreshData();
+  };
+
+  const handleEditCustomer = (cust: Customer) => {
+    setEditingCustomerId(cust.id);
+    setEditCustomerName(cust.name);
+    setEditCustomerStoreName(cust.storeName || "");
+    setEditCustomerAddress(cust.address || "");
+    setEditCustomerWhatsapp(cust.whatsapp || "");
+    setEditCustomerGps(cust.gpsLocation || "");
+  };
+
+  const handleSaveEditedCustomer = (id: string) => {
+    if (!editCustomerName) {
+      setErrorMsg("Error: Nama pelanggan tidak boleh kosong!");
+      setTimeout(() => setErrorMsg(""), 5000);
+      return;
+    }
+    const updated = customers.map(c => {
+      if (c.id === id) {
+        return {
+          ...c,
+          name: editCustomerName,
+          storeName: editCustomerStoreName,
+          address: editCustomerAddress,
+          whatsapp: editCustomerWhatsapp,
+          gpsLocation: editCustomerGps
+        };
+      }
+      return c;
+    });
+    setCustomers(updated);
+    saveCustomersToStorage(updated);
+    setEditingCustomerId(null);
+    onRefreshData();
+  };
+
+  const handleClearAllCustomers = () => {
+    setCustomers([]);
+    saveCustomersToStorage([]);
+    onRefreshData();
+    setShowClearCustomersConfirm(false);
+  };
 
   const handleSaveCompanySettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +242,7 @@ export default function Settings({ currentUser, onBack, onRefreshData }: Setting
     setPhone(current.phone);
     setEmail(current.email);
     setProducts(getProductsFromStorage());
+    setCustomers(getCustomersFromStorage());
 
     setTimeout(() => setIsResetSuccess(false), 5000);
   };
@@ -387,6 +491,268 @@ export default function Settings({ currentUser, onBack, onRefreshData }: Setting
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Customer Database Manager */}
+          <div className="bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 dark:border-stone-800 pb-3 flex-wrap gap-2">
+              <h3 className="font-display font-bold text-sm text-emerald-950 dark:text-emerald-400 uppercase tracking-wider flex items-center space-x-2">
+                <MapPin className="h-5 w-5 text-amber-600" />
+                <span>Kelola Database Pelanggan (Customer Manager)</span>
+              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCustomer(!isAddingCustomer)}
+                  className="px-3 py-1.5 text-[11px] font-bold bg-emerald-800 hover:bg-emerald-950 text-white rounded-lg transition cursor-pointer"
+                >
+                  {isAddingCustomer ? "Batal" : "+ Tambah Pelanggan"}
+                </button>
+                
+                {customers.length > 0 && (
+                  showClearCustomersConfirm ? (
+                    <div className="flex items-center gap-1.5 border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 px-2 py-1 rounded-lg">
+                      <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold animate-pulse">Hapus semua pelanggan?</span>
+                      <button
+                        type="button"
+                        onClick={handleClearAllCustomers}
+                        className="px-2 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded hover:bg-rose-700 cursor-pointer transition"
+                      >
+                        Ya
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowClearCustomersConfirm(false)}
+                        className="px-2 py-0.5 border border-stone-200 dark:border-stone-800 text-stone-500 bg-white dark:bg-stone-900 text-[10px] font-bold rounded hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer transition"
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowClearCustomersConfirm(true)}
+                      className="px-3 py-1.5 text-[11px] font-bold border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer"
+                    >
+                      Hapus Semua Pelanggan
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-500">
+              Database ini berisi daftar semua pelanggan (customer) terdaftar. Anda dapat menambah, mengubah, atau menghapus data pelanggan di sini. Pelanggan baru juga otomatis tersimpan saat Anda membuat sales order baru.
+            </p>
+
+            {isAddingCustomer && (
+              <form onSubmit={handleAddCustomer} className="bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 rounded-xl p-4 space-y-4">
+                <h4 className="text-xs font-bold text-emerald-900 dark:text-amber-500 uppercase tracking-wider">Tambah Pelanggan Baru</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Nama Pelanggan *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCustomerName}
+                      onChange={(e) => setNewCustomerName(e.target.value)}
+                      placeholder="Bapak Ahmad"
+                      className="w-full rounded-xl border border-stone-200 py-2.5 px-3 outline-none dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 focus:border-emerald-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Nama Toko / Perusahaan</label>
+                    <input
+                      type="text"
+                      value={newCustomerStore}
+                      onChange={(e) => setNewCustomerStore(e.target.value)}
+                      placeholder="Toko Jaya Sembako"
+                      className="w-full rounded-xl border border-stone-200 py-2.5 px-3 outline-none dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 focus:border-emerald-800"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Alamat Lengkap</label>
+                    <input
+                      type="text"
+                      value={newCustomerAddress}
+                      onChange={(e) => setNewCustomerAddress(e.target.value)}
+                      placeholder="Jl. Raya No. 123, Surabaya"
+                      className="w-full rounded-xl border border-stone-200 py-2.5 px-3 outline-none dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 focus:border-emerald-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">No. WhatsApp</label>
+                    <input
+                      type="text"
+                      value={newCustomerWhatsapp}
+                      onChange={(e) => setNewCustomerWhatsapp(e.target.value)}
+                      placeholder="+628123456789"
+                      className="w-full rounded-xl border border-stone-200 py-2.5 px-3 outline-none dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 focus:border-emerald-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Titik Koordinat GPS</label>
+                    <input
+                      type="text"
+                      value={newCustomerGps}
+                      onChange={(e) => setNewCustomerGps(e.target.value)}
+                      placeholder="-7.250445, 112.768845"
+                      className="w-full rounded-xl border border-stone-200 py-2.5 px-3 outline-none dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100 focus:border-emerald-800"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-xs font-bold bg-emerald-800 hover:bg-emerald-950 text-white rounded-lg transition cursor-pointer"
+                  >
+                    Simpan Pelanggan Baru
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="overflow-x-auto rounded-xl border border-stone-100 dark:border-stone-800 font-sans text-xs">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-stone-50 dark:bg-stone-950 text-stone-500 font-bold border-b border-stone-100 dark:border-stone-800">
+                    <th className="py-2.5 px-3">Nama Pelanggan / Toko</th>
+                    <th className="py-2.5 px-3">Alamat</th>
+                    <th className="py-2.5 px-3">WhatsApp & GPS</th>
+                    <th className="py-2.5 px-3 text-center w-28">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
+                  {customers.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-stone-400">
+                        Tidak ada pelanggan dalam database.
+                      </td>
+                    </tr>
+                  ) : (
+                    customers.map(c => (
+                      <tr key={c.id} className="align-middle hover:bg-stone-50/50 dark:hover:bg-stone-800/30">
+                        <td className="py-3 px-3">
+                          {editingCustomerId === c.id ? (
+                            <div className="space-y-1">
+                              <input
+                                type="text"
+                                value={editCustomerName}
+                                onChange={(e) => setEditCustomerName(e.target.value)}
+                                className="w-full py-1 px-1.5 border border-stone-200 rounded font-semibold text-stone-800 dark:bg-stone-950 dark:border-stone-800"
+                                placeholder="Nama"
+                              />
+                              <input
+                                type="text"
+                                value={editCustomerStoreName}
+                                onChange={(e) => setEditCustomerStoreName(e.target.value)}
+                                className="w-full py-1 px-1.5 border border-stone-200 rounded text-stone-600 dark:bg-stone-950 dark:border-stone-800"
+                                placeholder="Nama Toko"
+                              />
+                            </div>
+                          ) : (
+                            <div className="font-semibold text-stone-800 dark:text-stone-200">
+                              {c.name}
+                              {c.storeName && <span className="block text-[10px] text-stone-400 font-normal">{c.storeName}</span>}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-stone-500 max-w-xs truncate">
+                          {editingCustomerId === c.id ? (
+                            <textarea
+                              rows={2}
+                              value={editCustomerAddress}
+                              onChange={(e) => setEditCustomerAddress(e.target.value)}
+                              className="w-full py-1 px-1.5 border border-stone-200 rounded dark:bg-stone-950 dark:border-stone-800"
+                              placeholder="Alamat"
+                            />
+                          ) : (
+                            c.address
+                          )}
+                        </td>
+                        <td className="py-3 px-3 font-mono text-[11px] text-stone-600 dark:text-stone-300">
+                          {editingCustomerId === c.id ? (
+                            <div className="space-y-1">
+                              <input
+                                type="text"
+                                value={editCustomerWhatsapp}
+                                onChange={(e) => setEditCustomerWhatsapp(e.target.value)}
+                                className="w-full py-1 px-1.5 border border-stone-200 rounded dark:bg-stone-950 dark:border-stone-800"
+                                placeholder="WhatsApp"
+                              />
+                              <input
+                                type="text"
+                                value={editCustomerGps}
+                                onChange={(e) => setEditCustomerGps(e.target.value)}
+                                className="w-full py-1 px-1.5 border border-stone-200 rounded dark:bg-stone-950 dark:border-stone-800"
+                                placeholder="GPS"
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <div className="font-bold text-stone-800 dark:text-stone-200">{c.whatsapp}</div>
+                              {c.gpsLocation && <div className="text-[9px] text-emerald-600 dark:text-amber-500 flex items-center space-x-1"><span>📍 {c.gpsLocation}</span></div>}
+                            </>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {editingCustomerId === c.id ? (
+                            <div className="flex justify-center space-x-1.5">
+                              <button
+                                onClick={() => handleSaveEditedCustomer(c.id)}
+                                className="px-2 py-1 text-[10px] font-bold bg-emerald-700 text-white rounded hover:bg-emerald-800 cursor-pointer"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                onClick={() => setEditingCustomerId(null)}
+                                className="px-2 py-1 text-[10px] font-bold border border-stone-200 text-stone-500 rounded hover:bg-stone-100 cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : deletingCustomerId === c.id ? (
+                            <div className="flex justify-center space-x-1.5 items-center">
+                              <span className="text-[10px] text-rose-600 font-bold animate-pulse">Hapus?</span>
+                              <button
+                                onClick={() => {
+                                  handleDeleteCustomer(c.id);
+                                  setDeletingCustomerId(null);
+                                }}
+                                className="px-2 py-0.5 text-[10px] font-bold bg-rose-600 text-white rounded hover:bg-rose-700 cursor-pointer"
+                              >
+                                Ya
+                              </button>
+                              <button
+                                onClick={() => setDeletingCustomerId(null)}
+                                className="px-2 py-0.5 text-[10px] font-bold border border-stone-200 text-stone-500 rounded hover:bg-stone-100 cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex justify-center space-x-1.5">
+                              <button
+                                onClick={() => handleEditCustomer(c)}
+                                className="px-2.5 py-1 text-[10px] font-bold border border-stone-200 hover:bg-stone-100 dark:border-stone-800 text-stone-700 dark:text-stone-300 rounded cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => setDeletingCustomerId(c.id)}
+                                className="px-2.5 py-1 text-[10px] font-bold border border-rose-200 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

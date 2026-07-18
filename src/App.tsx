@@ -135,6 +135,7 @@ export default function App() {
             currentUser={currentUser}
             onBack={() => setView("DASHBOARD")}
             onRefreshData={handleRefreshData}
+            orders={orders}
           />
         ) : (
           <OrderForm 

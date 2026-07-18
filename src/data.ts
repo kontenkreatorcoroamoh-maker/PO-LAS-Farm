@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Product, SalesOrder, User, UserRole, PaymentMethod, OrderStatus, CompanySettings } from "./types";
+import { Product, SalesOrder, User, UserRole, PaymentMethod, OrderStatus, CompanySettings, Customer } from "./types";
 
 // Preset users
 export const PRESET_USERS: (User & { passwordKey: string })[] = [
@@ -474,14 +474,41 @@ export function saveCompanySettingsToStorage(settings: CompanySettings) {
   localStorage.setItem(`${STORAGE_PREFIX}company_settings`, encrypt(JSON.stringify(settings)));
 }
 
+export const SEED_CUSTOMERS: Customer[] = [];
+
+// Force clear existing customer database to satisfy the user request immediately
+if (typeof window !== "undefined" && !localStorage.getItem(`${STORAGE_PREFIX}customers_cleared_v1`)) {
+  localStorage.setItem(`${STORAGE_PREFIX}customers`, encrypt(JSON.stringify([])));
+  localStorage.setItem(`${STORAGE_PREFIX}customers_cleared_v1`, "true");
+}
+
+export function getCustomersFromStorage(): Customer[] {
+  const local = localStorage.getItem(`${STORAGE_PREFIX}customers`);
+  if (!local) {
+    localStorage.setItem(`${STORAGE_PREFIX}customers`, encrypt(JSON.stringify(SEED_CUSTOMERS)));
+    return SEED_CUSTOMERS;
+  }
+  try {
+    return JSON.parse(decrypt(local));
+  } catch (e) {
+    return SEED_CUSTOMERS;
+  }
+}
+
+export function saveCustomersToStorage(customers: Customer[]) {
+  localStorage.setItem(`${STORAGE_PREFIX}customers`, encrypt(JSON.stringify(customers)));
+}
+
 export function resetAllDataToDefault() {
   localStorage.removeItem(`${STORAGE_PREFIX}orders`);
   localStorage.removeItem(`${STORAGE_PREFIX}products`);
   localStorage.removeItem(`${STORAGE_PREFIX}company_settings`);
+  localStorage.removeItem(`${STORAGE_PREFIX}customers`);
   // Seed initial sets
   saveOrdersToStorage(SEED_ORDERS);
   saveProductsToStorage(DEFAULT_PRODUCTS);
   saveCompanySettingsToStorage(DEFAULT_COMPANY_SETTINGS);
+  saveCustomersToStorage(SEED_CUSTOMERS);
 }
 
 export function clearAllTransactions() {

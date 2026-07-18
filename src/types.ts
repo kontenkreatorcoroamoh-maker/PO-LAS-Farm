@@ -57,6 +57,15 @@ export interface CustomerInfo {
   gpsLocation?: string;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  storeName: string;
+  address: string;
+  whatsapp: string;
+  gpsLocation?: string;
+}
+
 export interface DeliveryInfo {
   deliveryDate: string;
   deliveryTime: string;

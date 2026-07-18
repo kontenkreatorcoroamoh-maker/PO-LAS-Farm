@@ -6,9 +6,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { 
   SalesOrder, OrderItem, CustomerInfo, PaymentMethod, 
-  OrderStatus, DeliveryInfo, PaymentSummary, User, UserRole, Product 
+  OrderStatus, DeliveryInfo, PaymentSummary, User, UserRole, Product, Customer 
 } from "../types";
-import { getProductsFromStorage, getCompanySettingsFromStorage } from "../data";
+import { getProductsFromStorage, getCompanySettingsFromStorage, getCustomersFromStorage, saveCustomersToStorage } from "../data";
 import { exportOrderToPdf } from "./PdfExport";
 import { exportOrderToExcel } from "./ExcelExport";
 import { 
@@ -28,6 +28,36 @@ export default function OrderForm({ orderToEdit, currentUser, onBack, onSave }: 
   const productsList = getProductsFromStorage();
   const companySettings = getCompanySettingsFromStorage();
   
+  // States for Customer database auto-fill
+  const [savedCustomers, setSavedCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [shouldSaveNewCustomer, setShouldSaveNewCustomer] = useState(!orderToEdit);
+
+  useEffect(() => {
+    setSavedCustomers(getCustomersFromStorage());
+  }, []);
+
+  const handleSelectCustomerChange = (id: string) => {
+    setSelectedCustomerId(id);
+    if (!id) {
+      // Clear fields for manual entry
+      setCustomerName("");
+      setStoreName("");
+      setCustomerAddress("");
+      setCustomerWhatsapp("");
+      setCustomerGps("");
+      return;
+    }
+    const found = savedCustomers.find(c => c.id === id);
+    if (found) {
+      setCustomerName(found.name);
+      setStoreName(found.storeName || "");
+      setCustomerAddress(found.address || "");
+      setCustomerWhatsapp(found.whatsapp || "");
+      setCustomerGps(found.gpsLocation || "");
+    }
+  };
+
   // States for form inputs
   const [orderNumber, setOrderNumber] = useState("");
   const [orderDate, setOrderDate] = useState("");
@@ -120,8 +150,19 @@ export default function OrderForm({ orderToEdit, currentUser, onBack, onSave }: 
       
       setIsLocked(orderToEdit.locked);
       setVerificationCode(orderToEdit.verificationCode);
+      
+      // Auto-match selectedCustomerId and prevent auto-save overwrite
+      const custs = getCustomersFromStorage();
+      const match = custs.find(c => c.name.trim().toLowerCase() === orderToEdit.customerInfo.name.trim().toLowerCase());
+      if (match) {
+        setSelectedCustomerId(match.id);
+      } else {
+        setSelectedCustomerId("");
+      }
+      setShouldSaveNewCustomer(false);
     } else {
       // Create mode
+      setShouldSaveNewCustomer(true);
       const today = "2026-07-18"; // Matching user metadata
       setOrderDate(today);
       setSalesName(currentUser.name);
@@ -392,14 +433,45 @@ export default function OrderForm({ orderToEdit, currentUser, onBack, onSave }: 
 
   // Handle top level save form submit
   const handleSaveOrder = () => {
-    if (!customerName || !customerAddress || !customerWhatsapp) {
-      alert("Error: Silakan lengkapi Informasi Customer (Nama, Alamat, WhatsApp) sebelum menyimpan.");
+    if (!customerName) {
+      alert("Error: Silakan lengkapi Informasi Customer (Nama) sebelum menyimpan.");
       return;
     }
 
     if (items.length === 0) {
       alert("Error: Rincian pesanan kosong. Tambahkan minimal 1 produk.");
       return;
+    }
+
+    // Auto-save new customer or update existing customer details in database if shouldSaveNewCustomer is enabled
+    if (shouldSaveNewCustomer) {
+      const currentList = getCustomersFromStorage();
+      const matchIdx = currentList.findIndex(c => 
+        (selectedCustomerId && c.id === selectedCustomerId) || 
+        c.name.trim().toLowerCase() === customerName.trim().toLowerCase()
+      );
+
+      if (matchIdx > -1) {
+        currentList[matchIdx] = {
+          ...currentList[matchIdx],
+          name: customerName,
+          storeName,
+          address: customerAddress,
+          whatsapp: customerWhatsapp,
+          gpsLocation: customerGps
+        };
+      } else {
+        const newCust: Customer = {
+          id: `cust-id-${Date.now()}`,
+          name: customerName,
+          storeName,
+          address: customerAddress,
+          whatsapp: customerWhatsapp,
+          gpsLocation: customerGps
+        };
+        currentList.push(newCust);
+      }
+      saveCustomersToStorage(currentList);
     }
 
     // Build Sales Order package
@@ -644,6 +716,38 @@ export default function OrderForm({ orderToEdit, currentUser, onBack, onSave }: 
               <span>Informasi Pelanggan (Customer Information)</span>
             </h3>
 
+            {/* Auto-fill from Database Pelanggan */}
+            {!isLocked && (
+              <div className="bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900/40 p-3 sm:p-4 rounded-xl space-y-2">
+                <label className="block text-[10px] font-extrabold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider font-mono">
+                  Pilih dari Database Pelanggan Terdaftar (Auto-Fill)
+                </label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => handleSelectCustomerChange(e.target.value)}
+                    className="flex-1 rounded-lg border border-stone-200 py-2 px-3 text-xs outline-none bg-white dark:bg-stone-950 dark:border-stone-800 dark:text-stone-200 focus:border-emerald-800"
+                  >
+                    <option value="">-- Ketik Baru / Pilih dari List --</option>
+                    {savedCustomers.map((cust) => (
+                      <option key={cust.id} value={cust.id}>
+                        {cust.name} {cust.storeName ? `(${cust.storeName})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-center space-x-2 text-xs text-stone-600 dark:text-stone-400 select-none shrink-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={shouldSaveNewCustomer}
+                      onChange={(e) => setShouldSaveNewCustomer(e.target.checked)}
+                      className="rounded text-emerald-800 focus:ring-emerald-800 h-4 w-4"
+                    />
+                    <span>Otomatis simpan/perbarui database pelanggan</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-sans">
               <div>
                 <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Nama Pelanggan (Customer Name) *</label>
@@ -671,10 +775,9 @@ export default function OrderForm({ orderToEdit, currentUser, onBack, onSave }: 
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Alamat Lengkap Pengiriman (Delivery Address) *</label>
+                <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Alamat Lengkap Pengiriman (Delivery Address)</label>
                 <textarea
                   rows={2}
-                  required
                   disabled={isLocked}
                   value={customerAddress}
                   onChange={(e) => setCustomerAddress(e.target.value)}
@@ -684,10 +787,9 @@ export default function OrderForm({ orderToEdit, currentUser, onBack, onSave }: 
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">No. WhatsApp (Aktif) *</label>
+                <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">No. WhatsApp (Aktif)</label>
                 <input
                   type="tel"
-                  required
                   disabled={isLocked}
                   value={customerWhatsapp}
                   onChange={(e) => setCustomerWhatsapp(e.target.value)}
