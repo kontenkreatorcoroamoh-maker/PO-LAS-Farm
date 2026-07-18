@@ -1,0 +1,6 @@
+{
+  "name": "LAS Farm Sales Order System",
+  "description": "A professional ERP-style Sales Order application for LAS Farm (Premium Kampung Chicken Eggs) with user roles, order management, digital signatures, and PDF generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

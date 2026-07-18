@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Custom Premium Colors */
+  --color-farm-green-950: #03140a;
+  --color-farm-green-900: #062412;
+  --color-farm-green-800: #0b3a20;
+  --color-farm-green-700: #14532d;
+  --color-farm-green-600: #166534;
+  --color-farm-green-500: #22c55e;
+  
+  --color-farm-gold-700: #854d0e;
+  --color-farm-gold-600: #a16207;
+  --color-farm-gold-500: #ca8a04;
+  --color-farm-gold-400: #facc15;
+  --color-farm-gold-300: #fde047;
+}
+
+/* Custom Signature Canvas Styling */
+.signature-canvas {
+  border: 2px dashed #ca8a04;
+  background-color: #fafaf9;
+  cursor: crosshair;
+  touch-action: none; /* Crucial for drawing on mobile without scrolling */
+}
+
+.dark .signature-canvas {
+  border: 2px dashed #ca8a04;
+  background-color: #1c1917;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ca8a04;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a16207;
+}
+
+/* Hide print elements during standard view */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
